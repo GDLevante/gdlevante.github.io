@@ -1,6 +1,7 @@
-// Copia config.example.js sobre este archivo e introduce las claves públicas.
-// La anon key puede estar en el navegador: la seguridad real la aplican las políticas RLS.
-window.GDL_CONFIG = {
-  supabaseUrl: 'https://bhxaxjunmpltzjokvrti.supabase.co',
-  supabaseAnonKey: 'sb_publishable_vGiW8jK0W5VoeMGpjGos3g_ivQtBGQf'
+// Copia este archivo como config.js y rellena SOLO estos dos valores.
+// La publishable/anon key está pensada para usarse en navegador cuando RLS está bien configurado.
+// NUNCA pongas aquí la service_role key.
+window.NFL_CONFIG = {
+  SUPABASE_URL: "https://bhxaxjunmpltzjokvrti.supabase.co",
+  SUPABASE_KEY: "sb_publishable_vGiW8jK0W5VoeMGpjGos3g_ivQtBGQf"
 };
