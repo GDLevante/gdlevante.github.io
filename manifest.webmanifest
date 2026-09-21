@@ -1,0 +1,15 @@
+{
+  "name": "Ghost Diving Base Levante",
+  "short_name": "GD Levante",
+  "description": "Mapa, avisos e intranet de Ghost Diving Base Levante",
+  "start_url": "./#/inicio",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#061b24",
+  "theme_color": "#061b24",
+  "lang": "es",
+  "icons": [
+    {"src":"assets/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"assets/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+  ]
+}
