@@ -1,6 +1,0 @@
-User-agent: *
-Allow: /
-Disallow: /data/
-Disallow: /admin/
-
-Sitemap: https://ghostdivinglevante.github.io/ghost-diving-reports/sitemap.xml
