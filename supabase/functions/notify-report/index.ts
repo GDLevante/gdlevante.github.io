@@ -21,7 +21,7 @@ serve(async (req) => {
     if(data.notification_sent_at) return new Response(JSON.stringify({ok:true,alreadySent:true}),{headers:{...cors,'Content-Type':'application/json'}})
     const response=await fetch('https://api.resend.com/emails',{
       method:'POST',headers:{Authorization:`Bearer ${Deno.env.get('RESEND_API_KEY')}`,'Content-Type':'application/json'},
-      body:JSON.stringify({from:Deno.env.get('MAIL_FROM'),to:[Deno.env.get('MAIL_TO') || 'levante@ghostdivingspains.org'],subject:`Nuevo aviso ${data.public_code}`,html:`<h2>Nuevo aviso Ghost Diving Levante</h2><p><strong>Código:</strong> ${data.public_code}</p><p><strong>Tipo:</strong> ${data.finding_type}</p><p>Entra en el panel de gestión para revisar coordenadas y adjuntos.</p>`})
+      body:JSON.stringify({from:Deno.env.get('MAIL_FROM'),to:[Deno.env.get('MAIL_TO') || 'levante@ghostdivingspain.org'],subject:`Nuevo aviso ${data.public_code}`,html:`<h2>Nuevo aviso Ghost Diving Levante</h2><p><strong>Código:</strong> ${data.public_code}</p><p><strong>Tipo:</strong> ${data.finding_type}</p><p>Entra en el panel de gestión para revisar coordenadas y adjuntos.</p>`})
     })
     if(!response.ok) throw new Error(await response.text())
     await admin.from('reports').update({notification_sent_at:new Date().toISOString()}).eq('id',reportId)
