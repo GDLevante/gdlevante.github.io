@@ -11,13 +11,13 @@ Web pública e intranet para registrar, revisar y gestionar puntos de redes fant
 - mapa interno y panel de gestión;
 - PostgreSQL, Auth y Storage mediante Supabase;
 - políticas RLS y almacenamiento privado;
-- función de aviso a `ghostdivinglevante@gmail.com`;
+- función de aviso a `levante@ghostdivingspains.org`;
 - despliegue automático con GitHub Actions;
 - preparación para dominio personalizado.
 - interfaz móvil con navegación táctil e instalación como aplicación web;
 - carga reanudable de vídeo para conexiones móviles inestables.
 
-Abre `index.html` para ver el prototipo en modo demostración. La configuración real se explica en `GUIA-DESPLIEGUE.md`.
+No existe modo de demostración: sin la configuración pública de Supabase y Turnstile la aplicación muestra un aviso y no simula datos ni accesos. La puesta en producción se explica en `GUIA-DESPLIEGUE.md`.
 
 ## Límites de medios iniciales
 

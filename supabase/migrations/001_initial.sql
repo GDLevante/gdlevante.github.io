@@ -35,6 +35,8 @@ create table public.reports (
   status public.report_status not null default 'pending_review',
   privacy_accepted_at timestamptz not null,
   media_consent_at timestamptz not null,
+  submitter_user_id uuid not null references auth.users(id) on delete cascade,
+  notification_sent_at timestamptz,
   source_ip_hash text,
   reviewed_by uuid references public.profiles(id),
   reviewed_at timestamptz,
@@ -105,10 +107,26 @@ $$;
 
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path=public as $$
 begin
-  insert into public.profiles(id,display_name) values(new.id,coalesce(new.raw_user_meta_data->>'display_name',''));
+  if not coalesce((new.raw_user_meta_data->>'is_anonymous')::boolean,false) then
+    insert into public.profiles(id,display_name) values(new.id,coalesce(new.raw_user_meta_data->>'display_name',''));
+  end if;
   return new;
 end $$;
 create trigger on_auth_user_created after insert on auth.users for each row execute procedure public.handle_new_user();
+
+create or replace function public.protect_profile_privileges() returns trigger language plpgsql security definer set search_path=public as $$
+declare actor_role public.user_role;
+begin
+  if auth.uid() is null then return new; end if;
+  if new.role is distinct from old.role or new.approved is distinct from old.approved then
+    select role into actor_role from public.profiles where id=auth.uid() and approved=true;
+    if actor_role='superadmin' then return new; end if;
+    if actor_role='admin' and old.role='diver' and new.role='diver' then return new; end if;
+    raise exception 'Only an authorized administrator may change roles or approval';
+  end if;
+  return new;
+end $$;
+create trigger protect_profile_privileges before update on public.profiles for each row execute procedure public.protect_profile_privileges();
 
 -- Entrada pública controlada: devuelve solo identificador y código, nunca el reporte completo.
 create or replace function public.submit_report(
@@ -118,12 +136,31 @@ create or replace function public.submit_report(
 ) returns table(id uuid, public_code text)
 language plpgsql security definer set search_path=public as $$
 begin
+  if auth.uid() is null then raise exception 'Authentication required'; end if;
   return query
-  insert into public.reports(latitude,longitude,finding_type,found_at,depth_m,dimensions,description,reporter_name,reporter_email,privacy_accepted_at,media_consent_at)
-  values(p_latitude,p_longitude,p_finding_type,p_found_at,p_depth_m,p_dimensions,p_description,nullif(p_reporter_name,''),nullif(p_reporter_email,''),now(),now())
+  insert into public.reports(latitude,longitude,finding_type,found_at,depth_m,dimensions,description,reporter_name,reporter_email,privacy_accepted_at,media_consent_at,submitter_user_id)
+  values(p_latitude,p_longitude,p_finding_type,p_found_at,p_depth_m,p_dimensions,p_description,nullif(p_reporter_name,''),nullif(p_reporter_email,''),now(),now(),auth.uid())
   returning reports.id,reports.public_code;
 end $$;
-grant execute on function public.submit_report(numeric,numeric,text,date,numeric,text,text,text,text) to anon,authenticated;
+revoke all on function public.submit_report(numeric,numeric,text,date,numeric,text,text,text,text) from public,anon;
+grant execute on function public.submit_report(numeric,numeric,text,date,numeric,text,text,text,text) to authenticated;
+
+create or replace function public.convert_report_to_point(p_report_id uuid) returns uuid
+language plpgsql security definer set search_path=public as $$
+declare new_point_id uuid;
+begin
+  if coalesce(public.current_role()::text,'') not in ('admin','superadmin') then raise exception 'Not authorized'; end if;
+  insert into public.points(source_report_id,latitude,longitude,finding_type,depth_m,status,visibility,created_by)
+  select id,latitude,longitude,finding_type,depth_m,'reported','private',auth.uid()
+  from public.reports where id=p_report_id and status not in ('converted','discarded')
+  returning id into new_point_id;
+  if new_point_id is null then raise exception 'Report cannot be converted'; end if;
+  update public.reports set status='converted',reviewed_by=auth.uid(),reviewed_at=now() where id=p_report_id;
+  insert into public.audit_log(actor_id,entity_type,entity_id,action) values(auth.uid(),'point',new_point_id,'created_from_report');
+  return new_point_id;
+end $$;
+revoke all on function public.convert_report_to_point(uuid) from public,anon;
+grant execute on function public.convert_report_to_point(uuid) to authenticated;
 
 alter table public.profiles enable row level security;
 alter table public.reports enable row level security;
@@ -144,11 +181,14 @@ create policy "public sees public points" on public.points for select using (vis
 create policy "admins manage points" on public.points for all to authenticated using (public.current_role() in ('admin','superadmin')) with check (public.current_role() in ('admin','superadmin'));
 
 create policy "admins read report media" on public.report_media for select to authenticated using (public.current_role() in ('admin','superadmin'));
-create policy "anonymous media rows" on public.report_media for insert to anon,authenticated with check (true);
+create policy "report owner adds media rows" on public.report_media for insert to authenticated with check (
+  exists(select 1 from public.reports r where r.id=report_id and r.submitter_user_id=auth.uid())
+);
 create policy "team reads allowed point media" on public.point_media for select to authenticated using (public.current_role() is not null and exists(select 1 from public.points p where p.id=point_id));
 create policy "team adds point media" on public.point_media for insert to authenticated with check (public.current_role() is not null and uploaded_by=auth.uid());
 create policy "admins manage point media" on public.point_media for all to authenticated using (public.current_role() in ('admin','superadmin'));
 create policy "admins manage access" on public.point_access for all to authenticated using (public.current_role() in ('admin','superadmin'));
+create policy "users read own point access" on public.point_access for select to authenticated using (user_id=auth.uid());
 create policy "admins read audit" on public.audit_log for select to authenticated using (public.current_role() in ('admin','superadmin'));
 
 insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) values
@@ -156,7 +196,9 @@ insert into storage.buckets(id,name,public,file_size_limit,allowed_mime_types) v
  ('point-media','point-media',false,104857600,array['image/jpeg','image/png','image/webp','video/mp4','video/webm','video/quicktime'])
 on conflict(id) do nothing;
 
-create policy "public upload report media" on storage.objects for insert to anon,authenticated with check (bucket_id='report-media');
+create policy "report owner uploads media" on storage.objects for insert to authenticated with check (
+  bucket_id='report-media' and (storage.foldername(name))[1]=auth.uid()::text
+);
 create policy "admins view report files" on storage.objects for select to authenticated using (bucket_id='report-media' and public.current_role() in ('admin','superadmin'));
 create policy "team uploads point files" on storage.objects for insert to authenticated with check (bucket_id='point-media' and public.current_role() is not null);
 create policy "team views point files" on storage.objects for select to authenticated using (bucket_id='point-media' and public.current_role() is not null);
