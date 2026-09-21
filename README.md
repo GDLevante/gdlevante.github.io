@@ -11,7 +11,7 @@ Web pública e intranet para registrar, revisar y gestionar puntos de redes fant
 - mapa interno y panel de gestión;
 - PostgreSQL, Auth y Storage mediante Supabase;
 - políticas RLS y almacenamiento privado;
-- función de aviso a `levante@ghostdivingspain.org`;
+- función de aviso a `ghostdivinglevante@gmail.com`;
 - despliegue automático con GitHub Actions;
 - preparación para dominio personalizado.
 - interfaz móvil con navegación táctil e instalación como aplicación web;

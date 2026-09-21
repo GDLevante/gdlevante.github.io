@@ -161,72 +161,61 @@ Hay dos configuraciones distintas. No deben confundirse:
 
 | Función | Sistema | Para qué sirve |
 |---|---|---|
-| Aviso de nuevo reporte | Edge Function + Resend | Avisa a `levante@ghostdivingspain.org` cuando alguien rellena el formulario |
-| Correos de usuarios | SMTP de OVH en Supabase Auth | Invitaciones, confirmaciones y recuperación de contraseña |
+| Aviso de nuevo reporte | Edge Function + Resend | Avisa a `ghostdivinglevante@gmail.com` cuando alguien rellena el formulario |
+| Recuperación de contraseña | Correo incorporado de Supabase Auth | Envía el enlace de recuperación a usuarios existentes |
 
 El puerto `995` es POP3: únicamente sirve para descargar correo recibido. La web no lo utiliza.
 
-### 8.1 Avisos de nuevos reportes con Resend
+### 8.1 Avisos de nuevos reportes a Gmail
 
 La función `notify-report` envía una notificación sin incluir coordenadas ni datos personales en el correo.
 
-1. Crea una cuenta en Resend.
-2. En **Domains → Add domain**, añade `ghostdivingspain.org`.
-3. Resend mostrará registros DNS DKIM/SPF. Añádelos en **OVHcloud → Dominios → Zona DNS** exactamente como aparecen.
-4. Espera a que Resend marque el dominio como **Verified**.
-5. En **API Keys**, crea una clave con permiso para enviar correo y cópiala una sola vez.
-6. Instala Supabase CLI y enlaza el proyecto:
+La configuración más sencilla no requiere tocar OVH ni verificar un dominio:
+
+1. Crea la cuenta de Resend utilizando `ghostdivinglevante@gmail.com`.
+2. En **API Keys**, crea una clave con permiso para enviar correo y cópiala una sola vez.
+3. Instala Supabase CLI y enlaza el proyecto:
 
 ```bash
 supabase login
 supabase link --project-ref TU_PROJECT_REF
 ```
 
-7. Configura los secretos. Usa una dirección del dominio verificado como remitente:
+4. Configura los secretos:
 
 ```bash
 supabase secrets set RESEND_API_KEY=TU_CLAVE
-supabase secrets set MAIL_FROM="Ghost Diving Levante <avisos@ghostdivingspain.org>"
-supabase secrets set MAIL_TO="levante@ghostdivingspain.org"
+supabase secrets set MAIL_FROM="Ghost Diving Levante <onboarding@resend.dev>"
+supabase secrets set MAIL_TO="ghostdivinglevante@gmail.com"
 supabase secrets set ALLOWED_ORIGIN="https://gdlevante.github.io"
 ```
 
-8. Despliega la función:
+5. Despliega la función:
 
 ```bash
 supabase functions deploy notify-report
 ```
 
-9. En Supabase abre **Edge Functions → notify-report → Logs**. Después envía un formulario real.
-10. Comprueba que el log devuelve estado correcto y que el mensaje llega a `levante@ghostdivingspain.org`, incluida la carpeta de spam.
+6. En Supabase abre **Edge Functions → notify-report → Logs**. Después envía un formulario real.
+7. Comprueba que el log devuelve estado correcto y que el mensaje llega a `ghostdivinglevante@gmail.com`, incluida la carpeta de spam.
 
-Para recibir esta notificación no hace falta la contraseña del buzón OVH. Resend entrega el mensaje a esa dirección como a cualquier destinatario. No uses el puerto 995: corresponde a POP3, es decir, recepción de correo.
+Con `onboarding@resend.dev`, Resend solo permite enviar al correo propietario de la cuenta. Por eso la cuenta de Resend debe crearse con `ghostdivinglevante@gmail.com`. No hace falta configurar OVH ni proporcionar la contraseña de Gmail.
 
-### 8.2 Correos de acceso y recuperación con OVH
+### 8.2 Recuperación de contraseña con Supabase
 
-Supabase Auth sí necesita SMTP para invitaciones y recuperación de contraseñas. Después de cambiar la contraseña que se haya compartido por un canal no seguro:
+No configures SMTP de OVH. La web ya utiliza directamente:
 
-1. Cambia primero la contraseña del buzón si se ha compartido o expuesto anteriormente.
-2. En Supabase abre **Project Settings → Authentication → SMTP Settings**.
-3. Activa SMTP personalizado.
-4. Introduce estos datos:
-
-```text
-Host SMTP: ssl0.ovh.net
-Puerto: 465
-Usuario: levante@ghostdivingspain.org
-Contraseña: la nueva contraseña del buzón
-Nombre del remitente: Ghost Diving Levante
-Correo del remitente: levante@ghostdivingspain.org
-Cifrado: SSL/TLS
+```javascript
+supabase.auth.resetPasswordForEmail(...)
 ```
 
-5. Guarda los cambios.
-6. En la web abre **Acceso**, escribe el correo de un usuario real y pulsa **Recuperar contraseña**.
-7. Comprueba el buzón y la carpeta de spam. Si no llega, revisa **Authentication → Logs** en Supabase.
-8. Cuando funcione la recuperación, prueba una invitación a un buzo.
+1. Deja desactivado **Allow new users to sign up**.
+2. Crea cada buzo desde **Authentication → Users** y activa **Auto Confirm User**.
+3. En **Authentication → URL Configuration**, mantén `https://gdlevante.github.io` como Site URL y `https://gdlevante.github.io/**` como Redirect URL.
+4. En la web abre **Acceso**, escribe el correo de un usuario existente y pulsa **Recuperar contraseña**.
+5. Supabase enviará el enlace con su servicio incorporado.
 
-La contraseña SMTP se introduce solo en el panel de Supabase; nunca en `config.js`, GitHub, SQL, capturas ni documentación.
+El correo incorporado de Supabase tiene límites bajos y está pensado para un volumen reducido. No permite que alguien se dé de alta: solo recupera la contraseña de usuarios que ya existen.
 
 ## 9. Fotografías y vídeo
 
